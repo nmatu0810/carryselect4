@@ -1,6 +1,6 @@
 SHELL := /bin/bash
 
-.PHONY: verify-all package slides report paper figures pnr pnr5 tau le-test fa-layout fa-drc fa-lvs fa-pex all tools golden lint-comb sim-unit lint synth-check sim sim-all wave synth sta compare help
+.PHONY: verify-all package slides report paper figures pnr pnr5 tau le-test fa-layout fa-drc fa-lvs fa-pex all tools golden lint-comb sim-unit lint synth-check sim sim-all gl-sim gl-sim-all wave synth sta compare help
 
 all: tools
 
@@ -106,6 +106,14 @@ sim:
 sim-all:
 	@for t in case1 case2 case3 case4 case5 case_illegal; do \
 		$(MAKE) sim TEST=$$t || exit 1; \
+	done
+
+gl-sim:
+	@scripts/run_glsim.sh $(TEST)
+
+gl-sim-all:
+	@for t in case1 case2 case3 case4 case5 case_illegal; do \
+		$(MAKE) --no-print-directory gl-sim TEST=$$t || exit 1; \
 	done
 
 wave:

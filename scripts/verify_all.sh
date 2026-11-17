@@ -46,6 +46,7 @@ chk() {   # chk <key> <op> <value>
 echo "== re-run =="
 run lint        make -s lint
 run sim-all     make -s sim-all
+run gl-sim-all  make -s gl-sim-all
 run synth       make -s synth
 run sta         make -s sta
 run compare     make -s compare
@@ -58,6 +59,7 @@ echo "== metrics gates (T5-T13) =="
 for c in case1 case2 case3 case4 case5 case_illegal; do chk "sim.$c.status" '==' PASS; done
 chk sim.latency_cycles '==' 2; chk sim.cycles_per_result '==' 2
 chk sim.exhaustive.checked '==' 512; chk sim.exhaustive.errors '==' 0
+for c in case1 case2 case3 case4 case5 case_illegal; do chk "glsim.$c.status" '==' PASS; chk "glsim.$c.errors" '==' 0; done
 chk synth.top.latch_count '==' 0; chk synth.top.ff_count '==' 16; chk synth.top.nand2_eq '<=' 500
 chk sta.synth.wns_setup_ns '>=' 0; chk sta.synth.wns_hold_ns '>=' 0
 for v in csla4 rca4 csla4_flat rca4_flat; do chk "cmp.$v.delay_ns" '>' 0; done

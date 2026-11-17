@@ -18,13 +18,9 @@ module tb_top;
     .data_out  (data_out)
   );
 
-  // Scoreboard item structure
-  typedef struct {
-    logic [4:0] exp;
-    int         accept_cycle;
-  } sb_entry_t;
-
-  sb_entry_t sb_q[$];
+  // Scoreboard: two parallel queues (expected data, accept cycle); Icarus has no struct queues
+  logic [4:0] sb_exp[$];
+  int         sb_acc[$];
 
   // Tracking counters and driver variables
   int         cycle = 0;
@@ -72,22 +68,24 @@ module tb_top;
 
       // 2) Check valid_out
       if (valid_out) begin
-        if (sb_q.size() == 0) begin
+        if (sb_exp.size() == 0) begin
           $display("ERROR [cycle %0d]: spurious valid_out=1 when scoreboard is empty! data_out=%0h", cycle, data_out);
           n_err++;
         end else begin
-          sb_entry_t item;
+          logic [4:0] it_exp;
+          int it_acc;
           int latency;
-          item = sb_q.pop_front();
-          latency = cycle - item.accept_cycle;
+          it_exp = sb_exp.pop_front();
+          it_acc = sb_acc.pop_front();
+          latency = cycle - it_acc;
 
-          if (data_out !== item.exp) begin
-            $display("ERROR [cycle %0d]: data mismatch! exp=%0h got=%0h", cycle, item.exp, data_out);
+          if (data_out !== it_exp) begin
+            $display("ERROR [cycle %0d]: data mismatch! exp=%0h got=%0h", cycle, it_exp, data_out);
             n_err++;
           end
 
           if (latency != 2) begin
-            $display("ERROR [cycle %0d]: latency mismatch! exp=2 got=%0d (accepted at cycle %0d)", cycle, latency, item.accept_cycle);
+            $display("ERROR [cycle %0d]: latency mismatch! exp=2 got=%0d (accepted at cycle %0d)", cycle, latency, it_acc);
             n_err++;
           end
 
@@ -100,10 +98,8 @@ module tb_top;
 
       // 3) Sample valid_in && ready_out (handshake accepted)
       if (valid_in && ready_out) begin
-        sb_entry_t new_item;
-        new_item.exp = cur_exp;
-        new_item.accept_cycle = cycle;
-        sb_q.push_back(new_item);
+        sb_exp.push_back(cur_exp);
+        sb_acc.push_back(cycle);
         n_accepted++;
         if (chk_gap && last_accept >= 0 && (cycle - last_accept) != 2) begin
           $display("ERROR [cycle %0d]: acceptance gap %0d != 2 (previous at cycle %0d)", cycle, cycle - last_accept, last_accept);
@@ -155,7 +151,7 @@ module tb_top;
   // Completion check task
   task automatic finish_test(string name);
     int timeout = 0;
-    while (sb_q.size() > 0 && timeout < 50) begin
+    while (sb_exp.size() > 0 && timeout < 50) begin
       @(posedge clk);
       timeout++;
     end
@@ -163,9 +159,9 @@ module tb_top;
     // Drain: a few extra cycles so a late spurious valid_out is still caught by the monitor
     repeat (3) @(posedge clk);
 
-    if (sb_q.size() > 0) begin
-      $display("ERROR %s: scoreboard not empty after %0d cycles (remaining: %0d)", name, timeout, sb_q.size());
-      n_err += sb_q.size();
+    if (sb_exp.size() > 0) begin
+      $display("ERROR %s: scoreboard not empty after %0d cycles (remaining: %0d)", name, timeout, sb_exp.size());
+      n_err += sb_exp.size();
     end
 
     if (n_checked != n_sent || n_accepted != n_sent) begin
@@ -248,17 +244,18 @@ module tb_top;
     end
   endtask
 
-  // Drop transactions that were cancelled by a reset: clear sb_q and un-count them
+  // Drop transactions that were cancelled by a reset: clear the scoreboard and un-count them
   task automatic cancel_pending(string tag, int expect_n);
     int n;
-    n = sb_q.size();
+    n = sb_exp.size();
     if (n != expect_n) begin
       $display("ERROR %s: %0d pending transactions at reset, expected %0d", tag, n, expect_n);
       n_err++;
     end
     n_sent     -= n;
     n_accepted -= n;
-    sb_q.delete();
+    sb_exp.delete();
+    sb_acc.delete();
   endtask
 
   // Called right at a posedge. rst_n=0 at +3 ns, outputs checked 1 ns later,
@@ -468,15 +465,14 @@ module tb_top;
     $dumpfile({"verif/out/", test_name, ".vcd"});
     $dumpvars(0, tb_top);
 
-    case (test_name)
-      "case1": run_case1();
-      "case2": run_case2();
-      "case3": run_case3();
-      "case4": run_case4();
-      "case_illegal": run_case_illegal();
-      "case5": run_case5();
-      default: $fatal(1, "unknown test %s", test_name);
-    endcase
+    // if/else chain instead of case(string): Icarus asserts on string case items
+    if      (test_name == "case1")        run_case1();
+    else if (test_name == "case2")        run_case2();
+    else if (test_name == "case3")        run_case3();
+    else if (test_name == "case4")        run_case4();
+    else if (test_name == "case_illegal") run_case_illegal();
+    else if (test_name == "case5")        run_case5();
+    else $fatal(1, "unknown test %s", test_name);
 
     $finish;
   end
