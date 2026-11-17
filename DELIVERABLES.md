@@ -8,7 +8,7 @@ sản phẩm mà plan rút ra từ file đó.
 | Deliverable | File | Tạo lại bằng |
 |---|---|---|
 | RTL SystemVerilog | `rtl/*.sv` | – |
-| Testbench, mô hình tham chiếu, vector | `verif/tb/`, `verif/golden/`, `verif/vectors/` | `make golden`, `make sim-all` |
+| Testbench, mô hình tham chiếu, vector | `verif/tb/`, `verif/golden/`, `verif/vectors/` | `make golden`, `make sim-all`, `make gl-sim-all`, `make postpnr-sim-all` |
 | Netlist tổng hợp, SDC, báo cáo STA | `syn/`, `results/logs/t6_sta.txt` | `make synth sta` |
 | So sánh CSLA-4 / RCA-4 | `results/cmp.csv`, `results/logs/t7.txt` | `make compare` |
 | GDSII và kết quả sign-off | `pnr/final/carryselect4_top.gds`, `pnr/final/ol_metrics.json`, `pnr/final/{def,nl,spef,sdf,lef,lib}/` | `make pnr` |

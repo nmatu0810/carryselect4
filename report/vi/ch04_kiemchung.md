@@ -46,6 +46,23 @@ Hai đột biến cho nhóm bài học riêng. Đột biến chỉ đặt `out_e
 
 Đột biến xóa nhánh `default` lúc đầu cũng lọt. Mô phỏng giữ lại giá trị cũ của `state_next`, và khi ép FSM vào `2'b11` từ IDLE thì giá trị cũ đó lại là IDLE. Nhóm thêm biến thể (b) cho case_illegal: ép `2'b11` từ DONE khi `valid_in = 1`, lúc `state_next` cũ là COMPUTE. Biến thể này làm FSM sang COMPUTE rồi DONE và phát `valid_out` giả, nên testbench bắt được.
 
+## Mô phỏng gate-level và sau PnR
+
+Mô phỏng RTL chỉ chứng minh mô tả đúng. Để biết mạch đã tổng hợp và mạch sau layout vẫn đúng, nhóm chạy lại cùng testbench `tb_top.sv` ở hai mức nữa bằng Icarus Verilog, không viết testbench mới nên ba mức dùng chung một bộ kiểm tra.
+
+Mức gate-level dùng netlist Yosys cùng model cell sky130 (chế độ chức năng, không delay). Cả 6 kịch bản đều PASS và số vector kiểm tra bằng số của mô phỏng RTL (ví dụ case 5: {{glsim.case5.checked}} vector, {{glsim.case5.errors}} lỗi). Mức sau PnR dùng netlist của LibreLane kèm file SDF với độ trễ cell sau layout, chạy ở corner `nom_tt` cho cả 6 kịch bản ({{postpnr.case5.checked}} vector ở case 5, {{postpnr.case5.errors}} lỗi) và chạy thêm case 1 ở corner chậm nhất `max_ss` ({{postpnr.max_ss.case1.status}}).
+
+Bảng: Kết quả mô phỏng ở ba mức
+| Mức | Netlist | Delay | Case 1 | Case 5 |
+|---|---|---|---|---|
+| RTL | `rtl/*.sv` (Verilator) | không | {{sim.case1.status}} | {{sim.case5.status}} |
+| Gate-level | `syn/out/*.syn.v` | không | {{glsim.case1.status}} | {{glsim.case5.status}} |
+| Sau PnR | `pnr/final/nl/*.nl.v` | SDF `nom_tt` | {{postpnr.case1.status}} | {{postpnr.case5.status}} |
+
+Để chắc rằng hai mức này thật sự bắt được lỗi, nhóm làm mutation trên netlist: đảo hai chân vào của một `mux2` hoặc thay cell `maj3` bằng `or3` thì mô phỏng FAIL. Với SDF, nhân mọi độ trễ `IOPATH` lên 30 lần cũng làm case 2 FAIL, chứng tỏ SDF thật sự được nạp và ảnh hưởng đến kết quả.
+
+Có hai giới hạn cần nói rõ. Thứ nhất, Icarus bỏ qua kiểm tra timing của model cell (`$setuphold`), nên mô phỏng sau PnR kiểm tra chức năng với độ trễ cell thật chứ không kiểm tra setup/hold; phần đó vẫn do OpenSTA sign-off. Thứ hai, Icarus không nạp được các mục `INTERCONNECT` trong SDF, nên độ trễ dây bị bỏ; giá trị lớn nhất bị bỏ là {{postpnr.sdf_interconnect_max_ns}} ns, rất nhỏ so với chu kỳ 10 ns. Chi tiết nằm ở D7 trong `docs/DEVIATIONS.md`.
+
 ## Dạng sóng, độ trễ và thông lượng
 
 Hình 4 là 12 chu kỳ đầu của case 2. Giao dịch đầu tiên được nhận tại cạnh 55 ns (cạnh *k*), và `valid_out` được lấy mẫu bằng 1 tại cạnh *k + 2* = 75 ns, đúng với định nghĩa ở quyết định D-4. Khi `valid_in` giữ bằng 1, FSM luân phiên giữa COMPUTE và DONE. Độ trễ đo được là {{sim.latency_cycles}} chu kỳ và cứ {{sim.cycles_per_result}} chu kỳ có một kết quả.

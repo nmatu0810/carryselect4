@@ -44,3 +44,5 @@ Mọi sai khác đều nằm trong `docs/DEVIATIONS.md`. Với phần vật lý 
 D1: các key `*.wns_*` lưu worst slack (dương khi đạt) thay cho WNS của OpenSTA, để biết còn dư bao nhiêu. D2: thêm `read_liberty -lib` và `rename -wire` để report STA đọc được tên thanh ghi; logic và diện tích không đổi. D3: loại cell `lpflow_*`, tránh dùng cell cách ly làm logic thường, giống cách LibreLane làm; số cell và diện tích không đổi.
 
 D4: lần chạy đầu trong môi trường không có Docker dùng tool native và PDK `open_pdks` 1.0.471. Số trong tài liệu là số chạy lại bằng image LibreLane 3.0.16 và PDK ciel, còn số của lần đầu chỉ còn là lịch sử. Hai lần chạy cho kết luận 5 ns khác nhau, nên nhóm chỉ trích số của lần chạy chính thức. D5: bài báo dựng bằng TeX Live khi máy không có tectonic; nội dung và lớp IEEEtran không đổi.
+
+D7: mô phỏng sau PnR dùng Icarus với SDF đã lọc bỏ khối `INTERCONNECT`, và không kiểm tra setup/hold (việc này vẫn thuộc về OpenSTA). Số trong tài liệu cho phần này là số chức năng sau layout với độ trễ cell, không phải số sign-off timing.

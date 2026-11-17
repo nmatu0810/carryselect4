@@ -32,6 +32,7 @@ terminal thì `run_pnr.sh` tự bọc lệnh bằng `script`.
 | Lint RTL | `make lint-comb`, `make lint` |
 | Kiểm tra khối `csla4` | `make sim-unit` |
 | Mô phỏng | `make sim TEST=case2`, `make sim-all`, `make wave TEST=case2` |
+| Mô phỏng gate-level, sau PnR | `make gl-sim-all`, `make postpnr-sim-all` (Icarus; SDF, xem D7) |
 | Tổng hợp + STA | `make synth sta` |
 | So sánh CSLA / RCA | `make compare` |
 | RTL→GDSII | `make pnr` (10 ns), `make pnr5` (5 ns) |

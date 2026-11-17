@@ -1,3 +1,8 @@
+// SETTLE_NS: wait after an asynchronous reset before the outputs are checked. 1 ns is enough with
+// zero or unit delays; the post-PnR run with SDF delays defines a larger value.
+`ifndef SETTLE_NS
+`define SETTLE_NS 1
+`endif
 module tb_top;
   logic       clk;
   logic       rst_n;
@@ -17,6 +22,28 @@ module tb_top;
     .valid_out (valid_out),
     .data_out  (data_out)
   );
+
+  // FSM state probe. The flattened post-PnR netlist has no u_ctrl.state vector, only the two
+  // flop outputs \u_ctrl/state[0] and \u_ctrl/state[1]; define FLAT_NETLIST to probe those.
+`ifdef FLAT_NETLIST
+  wire [1:0] st_view = {dut.\u_ctrl/state[1] , dut.\u_ctrl/state[0] };
+  task force_state(input logic [1:0] v);
+    force dut.\u_ctrl/state[1]  = v[1];
+    force dut.\u_ctrl/state[0]  = v[0];
+  endtask
+  task release_state();
+    release dut.\u_ctrl/state[1] ;
+    release dut.\u_ctrl/state[0] ;
+  endtask
+`else
+  wire [1:0] st_view = dut.u_ctrl.state;
+  task force_state(input logic [1:0] v);
+    force dut.u_ctrl.state = v;
+  endtask
+  task release_state();
+    release dut.u_ctrl.state;
+  endtask
+`endif
 
   // Scoreboard: two parallel queues (expected data, accept cycle); Icarus has no struct queues
   logic [4:0] sb_exp[$];
@@ -267,7 +294,7 @@ module tb_top;
       n_err++;
     end
     rst_n = 1'b0;
-    #1;
+    #(`SETTLE_NS);   // time for the async clear to reach the outputs (1 ns with zero delays)
     check_out({tag, "/after-reset"}, 1'b0, 1'b1, 5'h00);
     cancel_pending(tag, expect_cancel);
     @(posedge clk);
@@ -401,10 +428,10 @@ module tb_top;
     $readmemh("verif/vectors/exhaustive.hex", mem);
     drive_reset();
     @(negedge clk);
-    force dut.u_ctrl.state = 2'b11;
+    force_state(2'b11);
     #1;
-    if (dut.u_ctrl.state !== 2'b11 || valid_out !== 1'b0) begin
-      $display("ERROR case_illegal: forced state=%b valid_out=%b", dut.u_ctrl.state, valid_out);
+    if (st_view !== 2'b11 || valid_out !== 1'b0) begin
+      $display("ERROR case_illegal: forced state=%b valid_out=%b", st_view, valid_out);
       n_err++;
     end
     @(posedge clk);      // forced for one full cycle
@@ -413,12 +440,12 @@ module tb_top;
       $display("ERROR case_illegal: valid_out=%b while state=11", valid_out);
       n_err++;
     end
-    release dut.u_ctrl.state;
+    release_state();
     @(posedge clk);      // at most one edge after release the FSM must be back in IDLE
     #1;
-    if (dut.u_ctrl.state !== 2'b00 || valid_out !== 1'b0) begin
+    if (st_view !== 2'b00 || valid_out !== 1'b0) begin
       $display("ERROR case_illegal: state=%b valid_out=%b one edge after release, expected state=00 valid_out=0",
-               dut.u_ctrl.state, valid_out);
+               st_view, valid_out);
       n_err++;
     end
     // a transaction after recovery must produce the correct result
@@ -430,10 +457,10 @@ module tb_top;
     send(mem[301][13:5], mem[301][4:0]);   // accepted at edge k, valid_in stays 1
     @(negedge clk);                        // k+0.5: COMPUTE
     @(negedge clk);                        // k+1.5: DONE
-    force dut.u_ctrl.state = 2'b11;
+    force_state(2'b11);
     #1;
-    if (dut.u_ctrl.state !== 2'b11 || valid_out !== 1'b0 || ready_out !== 1'b0) begin
-      $display("ERROR case_illegal/b: forced state=%b valid_out=%b ready_out=%b", dut.u_ctrl.state, valid_out, ready_out);
+    if (st_view !== 2'b11 || valid_out !== 1'b0 || ready_out !== 1'b0) begin
+      $display("ERROR case_illegal/b: forced state=%b valid_out=%b ready_out=%b", st_view, valid_out, ready_out);
       n_err++;
     end
     cancel_pending("case_illegal/b", 1);   // in-flight transaction is abandoned by the illegal state
@@ -442,12 +469,12 @@ module tb_top;
     have_prev = 1'b0;
     @(posedge clk);
     #1;
-    release dut.u_ctrl.state;
+    release_state();
     idle(1);                               // drop valid_in at the next negedge
     @(posedge clk);
     #1;
-    if (dut.u_ctrl.state !== 2'b00 || valid_out !== 1'b0) begin
-      $display("ERROR case_illegal/b: state=%b valid_out=%b one edge after release, expected 00/0", dut.u_ctrl.state, valid_out);
+    if (st_view !== 2'b00 || valid_out !== 1'b0) begin
+      $display("ERROR case_illegal/b: state=%b valid_out=%b one edge after release, expected 00/0", st_view, valid_out);
       n_err++;
     end
     send(mem[302][13:5], mem[302][4:0]);

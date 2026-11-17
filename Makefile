@@ -1,11 +1,12 @@
 SHELL := /bin/bash
 
-.PHONY: verify-all package slides report paper figures pnr pnr5 tau le-test fa-layout fa-drc fa-lvs fa-pex all tools golden lint-comb sim-unit lint synth-check sim sim-all gl-sim gl-sim-all wave synth sta compare help
+.PHONY: verify-all package slides report paper figures pnr pnr5 tau le-test fa-layout fa-drc fa-lvs fa-pex all tools golden lint-comb sim-unit lint synth-check sim sim-all gl-sim gl-sim-all postpnr-sim postpnr-sim-all wave synth sta compare help
 
 all: tools
 
 TEST ?= case1
 SEED ?= 1
+CORNER ?= nom_tt_025C_1v80
 
 golden:
 	@source scripts/env.sh && python3 verif/golden/golden.py --outdir verif/vectors
@@ -115,6 +116,15 @@ gl-sim-all:
 	@for t in case1 case2 case3 case4 case5 case_illegal; do \
 		$(MAKE) --no-print-directory gl-sim TEST=$$t || exit 1; \
 	done
+
+postpnr-sim:
+	@scripts/run_postpnr_sim.sh $(TEST) $(CORNER)
+
+postpnr-sim-all:
+	@for t in case1 case2 case3 case4 case5 case_illegal; do \
+		$(MAKE) --no-print-directory postpnr-sim TEST=$$t || exit 1; \
+	done
+	@$(MAKE) --no-print-directory postpnr-sim TEST=case1 CORNER=max_ss_100C_1v60
 
 wave:
 	gtkwave verif/out/$(TEST).vcd

@@ -46,3 +46,14 @@ Format:
 - Thực tế: `scripts/verify_all.sh` chạy lại vào một bản sao `results/metrics.json` (`results/out/verify_metrics.json`) và in danh sách số lệch so với bản đã commit; nó không ghi đè số mà paper, báo cáo và slide dùng. PnR không được chạy lại (quá lâu), thay vào đó so sha256 của GDS với `DELIVERABLES.md`.
 - Lý do: để chạy lại không làm thay đổi số liệu đã công bố, và để thấy ngay nếu công cụ cho số khác.
 - Ảnh hưởng: trong môi trường cloud (Yosys 0.70, liberty `open_pdks` 1.0.471) các số `cmp.*` của Task 7 lệch (CSLA-4 phân cấp 1.256 ns thay vì 1.242; RCA-4 phân cấp 1.654 ns thay vì 1.71; RCA-4 flatten 1.317 ns thay vì 2.005), đảo kết luận về bản flatten. Trên máy nhóm (Yosys 0.66, PDK ciel `8afc8346…`, image LibreLane 3.0.16) `make verify-all` cho phần drift là `none`: mọi số `cmp.*` trùng số đã commit. Vì vậy kết luận về bản flatten trong Task 7 đúng với bộ công cụ chính thức; chỉ bản chạy cloud mới lệch.
+
+## D7: Mô phỏng gate-level và sau PnR bằng Icarus: testbench dùng chung, SDF được lọc, không kiểm tra setup/hold
+- Spec (Task 21, 22): chạy lại `tb_top.sv` trên netlist Yosys và netlist sau PnR bằng Icarus Verilog, kèm SDF.
+- Thực tế:
+  - Icarus 13 không hỗ trợ struct unpacked, hàng đợi struct, `case` trên string và `force` với biến automatic. `tb_top.sv` được sửa tối thiểu: scoreboard dùng hai hàng đợi song song, bỏ `case` string, các task ép/nhả trạng thái FSM không còn `automatic`. Logic kiểm tra không đổi; `make sim-all` (Verilator) vẫn PASS với cùng số `checked`.
+  - Netlist sau PnR đã flatten, không có vector `u_ctrl.state`. TB thêm bộ dò trạng thái (`st_view`, `force_state`, `release_state`) và macro `FLAT_NETLIST` để ép/đọc hai flop `\u_ctrl/state[0]`, `\u_ctrl/state[1]`.
+  - SDF của OpenSTA phải lọc trước khi nạp (`scripts/sdf_prep.py`): bỏ dòng `VOLTAGE/PROCESS/TEMPERATURE` và khối `INTERCONNECT` giữa các cell, vì Icarus không nạp được. Mọi `IOPATH` của cell vẫn được nạp. Độ trễ dây bị bỏ lớn nhất là 0.023 ns ở `nom_tt` và 0.037 ns ở `max_ss` (`postpnr.sdf_interconnect_max_ns`, `postpnr.max_ss.sdf_interconnect_max_ns`).
+  - Icarus bỏ qua kiểm tra timing của model cell (`$setuphold`), nên mô phỏng này kiểm tra chức năng với độ trễ cell thật, **không** kiểm tra setup/hold. Setup/hold vẫn do OpenSTA sign-off (Task 8).
+  - Kiểm tra reset bất đồng bộ trong `tb_top.sv` chờ `SETTLE_NS` sau khi hạ `rst_n`. Mặc định 1 ns (không delay); với SDF các output cần khoảng 1.19 ns để ổn định ở `nom_tt` nên lần chạy sau PnR dùng 1.5 ns.
+- Lý do: giữ một testbench duy nhất cho cả ba mức (RTL, gate, sau PnR) thay vì ba bản dễ lệch nhau.
+- Ảnh hưởng: chạy 6 case ở corner `nom_tt_025C_1v80` và case1 ở `max_ss_100C_1v60`. Kiểm tra phản chứng: nhân mọi `IOPATH` lên 30 lần thì `case2` FAIL; đảo hai chân vào của một `mux2` trong netlist sau PnR thì `case5` FAIL.

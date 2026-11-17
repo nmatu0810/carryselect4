@@ -80,7 +80,10 @@ All \metric{synth.top.ff_count} flip-flops use an asynchronous active-low reset.
 The testbench is self-checking SystemVerilog running on Verilator. A scoreboard compares each result
 with vectors from an independent Python golden model and also checks that the latency is exactly two
 cycles. Table~\ref{tab:ver} lists the cases. In Fig.~\ref{fig:wave} an input accepted at clock edge $k$
-gives \texttt{valid\_out} at edge $k+2$, and the next result arrives two cycles after that.
+gives \texttt{valid\_out} at edge $k+2$, and the next result arrives two cycles after that. The same
+testbench also passes on the synthesized netlist and on the post-PnR netlist with SDF delays (Icarus,
+corner \texttt{nom\_tt}; \metric{postpnr.case5.checked} vectors, \metric{postpnr.case5.errors} errors).
+This checks function under cell delays, not setup or hold, which OpenSTA signs off.
 
 \begin{table}[t]
 \centering
