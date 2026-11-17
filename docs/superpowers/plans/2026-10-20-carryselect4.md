@@ -996,3 +996,55 @@ node slides/build_slides.mjs && unzip -l slides/CarrySelect4_BaoVe.pptx | grep -
 make verify-all; echo EXIT=$?          # EXIT=0
 ls -la CarrySelect4_Nhom7.zip paper/CarrySelect4_IEEE.pdf report/baocao_CarrySelect4.docx slides/CarrySelect4_BaoVe.pptx pnr/final/carryselect4_top.gds
 ```
+
+---
+
+## Bổ sung: hai bước mô phỏng còn thiếu so với flow chuẩn
+
+Flow RTL→GDSII chuẩn có thêm **GL Sim** (sau tổng hợp) và **Post-PnR Sim** (sau layout, kèm SDF). Hai task dưới đây bổ sung. Không sửa RTL, `syn/`, `pnr/`, slide.
+
+### Task 21: GL Sim (mô phỏng gate-level sau Yosys)
+
+**Files:**
+- Create: `verif/tb/tb_top.sv` được tái dùng nguyên (không sửa logic kiểm tra), `scripts/run_glsim.sh`
+- Modify: `Makefile` (target `gl-sim`), `results/metrics.json` qua `metrics.py`
+
+**Interfaces:**
+- Consumes: `syn/out/carryselect4_top.syn.v`, model cell `$PDK_ROOT/sky130A/libs.ref/sky130_fd_sc_hd/verilog/{primitives.v,sky130_fd_sc_hd.v}`, `verif/tb/tb_top.sv`, `verif/vectors/`.
+- Produces: `make gl-sim TEST=<case>` và `make gl-sim-all`, chạy bằng **Icarus** (`iverilog -g2012`, `vvp`) với `+define+FUNCTIONAL +define+UNIT_DELAY=#0` để bỏ timing. Khoá metrics: `glsim.<case>.status` (PASS/FAIL), `glsim.<case>.checked`, `glsim.<case>.errors`.
+- Nếu `tb_top.sv` dùng cú pháp Icarus 13 không hỗ trợ: chỉ sửa tối thiểu phần cú pháp, ghi vào `docs/DEVIATIONS.md` (D7) và chạy lại `make sim-all` để chứng minh RTL sim vẫn PASS.
+
+- [ ] **Step 1:** Biên dịch netlist + model cell + TB, chạy cả 5 case và `case_illegal`.
+- [ ] **Step 2:** So khớp: số `checked` của GL Sim bằng số `checked` của RTL Sim ở cùng case; `errors=0`.
+- [ ] **Step 3:** Ghi metrics, cập nhật `verify_all.sh` chạy `gl-sim-all`.
+- [ ] **Step 4:** Commit `test(verif): gate-level simulation of synthesized netlist`.
+
+**Reviewer gate:**
+```bash
+make gl-sim-all; echo EXIT=$?
+python3 scripts/metrics.py check 'glsim.case1.status=="PASS"' 'glsim.case5.errors==0'
+```
+Đột biến kiểm tra: đổi một cell trong netlist (ví dụ đảo một mux) thì GL Sim phải FAIL.
+
+### Task 22: Post-PnR Sim (netlist sau layout + SDF)
+
+**Files:**
+- Create: `scripts/run_postpnr_sim.sh`, `verif/tb/tb_top_sdf.sv` (wrapper gọi `$sdf_annotate`, không nhân bản logic kiểm tra)
+- Modify: `Makefile` (target `postpnr-sim`)
+
+**Interfaces:**
+- Consumes: `pnr/final/nl/carryselect4_top.nl.v`, `pnr/final/sdf/nom_tt_025C_1v80/*.sdf` (corner chính), model cell sky130 ở chế độ **không** `FUNCTIONAL` (để có `specify`), `tb_top.sv`.
+- Produces: `make postpnr-sim TEST=<case>`; khoá metrics `postpnr.<case>.status`, `postpnr.corner`. Chạy thêm corner `max_ss_100C_1v60` cho **một** case (case1) để chứng minh timing xấu nhất vẫn đúng ở chu kỳ 10 ns.
+- Hạn chế đã biết: model cell sky130 cần timescale 1ns/1ps; nếu `$sdf_annotate` báo cảnh báo "cannot find instance", ghi lại số cảnh báo và giải thích, không bỏ qua im lặng.
+
+- [ ] **Step 1:** Biên dịch netlist PnR + model + SDF nom_tt, chạy 5 case + `case_illegal`.
+- [ ] **Step 2:** Chạy case1 ở `max_ss`. Kiểm tra `errors=0`.
+- [ ] **Step 3:** Ghi metrics, thêm vào `verify_all.sh`.
+- [ ] **Step 4:** Cập nhật báo cáo (`ch04_kiemchung.md`, `ch06_physical.md`) và paper (một câu, vẫn ≤ 4 trang) bằng placeholder metrics. Không đụng slide.
+- [ ] **Step 5:** Commit `test(verif): post-PnR simulation with SDF`.
+
+**Reviewer gate:**
+```bash
+make postpnr-sim TEST=case1; echo EXIT=$?
+make verify-all; echo EXIT=$?          # PASS, drift none, paper 4 trang
+```
